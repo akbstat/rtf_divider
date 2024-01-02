@@ -17,8 +17,11 @@ impl Kind {
             let prefix = name.as_bytes().get(0).unwrap();
             match prefix {
                 108u8 => return Some(Kind::Listing),
+                76u8 => return Some(Kind::Listing),
                 116u8 => return Some(Kind::Table),
+                84u8 => return Some(Kind::Table),
                 102u8 => return Some(Kind::Figure),
+                70u8 => return Some(Kind::Figure),
                 _ => return None,
             }
         }
@@ -72,9 +75,9 @@ mod rtf_test {
     use super::*;
     #[test]
     fn list_rtf_test() {
-        let dir = Path::new(r"D:\网页下载文件\dingtalk\202-113");
+        let dir = Path::new(r"D:\网页下载文件\dingtalk\112-101");
         let rtfs = list_rtf(dir).unwrap();
-        assert_eq!(rtfs.len(), 142)
+        assert_eq!(rtfs.len(), 88)
     }
 
     #[test]
