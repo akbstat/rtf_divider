@@ -8,6 +8,13 @@ use std::{
 
 use super::RTF_EXTENTION;
 
+const TROWD: &[u8] = r"\trowd".as_bytes();
+const PAGE: &[u8] = r"\page".as_bytes();
+const FIELD: &[u8] = r"{\field".as_bytes();
+const SECTD: &[u8] = r"\sectd".as_bytes();
+const CLOSE_BRACE: u8 = b'}';
+const SPACE: u8 = b' ';
+
 pub struct Report5Divider<'a> {
     filename: &'a str,
     pagesize: usize,
@@ -65,13 +72,12 @@ impl<'a> Report5Divider<'a> {
 
     /// get the position of rtf header, store the result in header_pos
     fn find_header_pos(&mut self) {
-        let trowd_value = [92u8, 116, 114, 111, 119, 100];
         for (head, _) in self.bytes.iter().enumerate() {
             let tail = head + 5;
             if !(tail < self.bytes.len()) {
                 break;
             };
-            if trowd_value.eq(&self.bytes[head..tail + 1]) {
+            if TROWD.eq(&self.bytes[head..tail + 1]) {
                 self.header_pos.1 = head;
                 break;
             }
@@ -79,12 +85,11 @@ impl<'a> Report5Divider<'a> {
     }
     /// get the position of each pages, store the result in page_pos_list
     fn divide_pages(&mut self) {
-        let page_value = [92u8, 112, 97, 103, 101];
         let mut page_pos = (self.header_pos.1, 0usize);
         let mut head = self.header_pos.1;
         while head < self.bytes.len() - 4 {
             let mut tail = head + 4;
-            if page_value.eq(&self.bytes[head..tail + 1]) {
+            if PAGE.eq(&self.bytes[head..tail + 1]) {
                 while self.bytes[tail] != 125 {
                     tail += 1;
                 }
@@ -110,12 +115,98 @@ impl<'a> Report5Divider<'a> {
         } else {
             self.page_pos_list[range.1 - 1]
         };
-        f.write(&self.bytes[first_page.0..last_page.1])?;
+        let content = &self.bytes[first_page.0..last_page.1];
+        let mut contet_start = 0;
+        let mut field_area_start = 0;
+        let mut field_area_open = false;
+        // remove auto field informations
+        for (i, _) in content.iter().enumerate() {
+            if i < FIELD.len() {
+                continue;
+            }
+
+            if let Some(mark) = content.get(i - FIELD.len()..i) {
+                if FIELD.eq(mark) {
+                    let mut content_end = i - FIELD.len();
+                    // eliminate new line char
+                    while let Some(c) = content.get(content_end) {
+                        if CLOSE_BRACE.eq(c) {
+                            break;
+                        }
+                        content_end -= 1;
+                    }
+                    f.write(&content[contet_start..content_end])?;
+                    field_area_open = true;
+                    field_area_start = i - FIELD.len();
+                    continue;
+                }
+            }
+
+            if let Some(mark) = content.get(i - SECTD.len()..i) {
+                if SECTD.eq(mark) && field_area_open {
+                    f.write(&extract_page_number(
+                        content.get(field_area_start..i - SECTD.len()).unwrap(),
+                    ))?;
+                    f.write(&vec![CLOSE_BRACE])?;
+                    field_area_open = false;
+                    contet_start = i - SECTD.len()
+                }
+            }
+        }
+
+        f.write(&content[contet_start..])?;
+        // f.write(content)?;
         f.write(&[125u8, 125u8])?;
         f.flush().unwrap();
         Ok(())
     }
     fn out_file_path(&self, dest: &Path, filename: &str, index: usize) -> PathBuf {
         PathBuf::from(dest).join(format!("{}_part_{:0>4}{}", filename, index, RTF_EXTENTION))
+    }
+}
+
+fn extract_page_number(source: &[u8]) -> Vec<u8> {
+    let mut tail = source.len() - 1;
+    let mut page_number_start = 0;
+    let mut page_number_end = tail;
+    while let Some(c) = source.get(tail) {
+        if CLOSE_BRACE.ne(c) {
+            page_number_end = tail + 1;
+            break;
+        }
+        tail -= 1;
+    }
+    while let Some(c) = source.get(tail) {
+        if SPACE.ne(c) {
+            page_number_end = tail + 1;
+            break;
+        }
+        tail -= 1;
+    }
+
+    while let Some(c) = source.get(tail) {
+        if SPACE.eq(c) {
+            page_number_start = tail + 1;
+            break;
+        }
+        tail -= 1;
+    }
+    source
+        .get(page_number_start..page_number_end)
+        .unwrap()
+        .to_owned()
+}
+
+#[cfg(test)]
+mod test_report5 {
+    use super::*;
+    #[test]
+    fn extract_page_number_test() {
+        let source = r"{\field{\*\fldinst {\rtlch\fcs1 \af44\afs21 \ltrch\fcs0 \fs21\cf1\loch\af44\hich\af44\dbch\af13\insrsid1004785 \hich\af44\dbch\af13\loch\f44  PAGE }}{\fldrslt {
+            \rtlch\fcs1 \af44\afs21 \ltrch\fcs0 \fs21\cf1\lang1024\langfe1024\loch\af44\hich\af44\dbch\af13\noproof\insrsid11627908 \hich\af44\dbch\af13\loch\f44 1}}}".as_bytes();
+        assert_eq!(
+            "1",
+            String::from_utf8_lossy(&extract_page_number(source)).to_string()
+        )
     }
 }
