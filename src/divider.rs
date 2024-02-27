@@ -56,9 +56,16 @@ mod divider_test {
     use super::*;
     #[test]
     fn test_divider() {
-        let pdf =
-            Path::new(r"D:\Studies\ak112\303\stats\CSR\product\output\l-16-02-08-06-ecog-ss.rtf");
-        let dest = Path::new(r"D:\Studies\ak112\303\stats\CSR\product\output\rtf-divided");
+        // let pdf =
+        //     Path::new(r"D:\Studies\ak112\303\stats\CSR\product\output\l-16-02-08-06-ecog-ss.rtf");
+        // let dest = Path::new(r"D:\Studies\ak112\303\stats\CSR\product\output\rtf-divided");
+        // let divider = RTFDivider::new(pdf).unwrap().unwrap();
+        // divider.set_pagesize(50).divide(dest).unwrap();
+
+        let pdf = Path::new(
+            r"D:\Studies\ak112\303\stats\CSR\product\output\asco\t-14-01-03-01-dm-fas.rtf",
+        );
+        let dest = Path::new(r"D:\Studies\ak112\303\stats\CSR\product\output\asco\rtf_divided");
         let divider = RTFDivider::new(pdf).unwrap().unwrap();
         divider.set_pagesize(50).divide(dest).unwrap();
     }

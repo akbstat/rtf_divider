@@ -14,6 +14,8 @@ const FIELD: &[u8] = r"{\field".as_bytes();
 const SECTD: &[u8] = r"\sectd".as_bytes();
 const CLOSE_BRACE: u8 = b'}';
 const SPACE: u8 = b' ';
+const NEWLINE: u8 = b'\n';
+const RETURN: u8 = b'\r';
 
 pub struct Report5Divider<'a> {
     filename: &'a str,
@@ -116,7 +118,7 @@ impl<'a> Report5Divider<'a> {
             self.page_pos_list[range.1 - 1]
         };
         let content = &self.bytes[first_page.0..last_page.1];
-        let mut contet_start = 0;
+        let mut content_start = 0;
         let mut field_area_start = 0;
         let mut field_area_open = false;
         // remove auto field informations
@@ -135,7 +137,7 @@ impl<'a> Report5Divider<'a> {
                         }
                         content_end -= 1;
                     }
-                    f.write(&content[contet_start..content_end])?;
+                    f.write(&content[content_start..content_end])?;
                     field_area_open = true;
                     field_area_start = i - FIELD.len();
                     continue;
@@ -149,12 +151,12 @@ impl<'a> Report5Divider<'a> {
                     ))?;
                     f.write(&vec![CLOSE_BRACE])?;
                     field_area_open = false;
-                    contet_start = i - SECTD.len()
+                    content_start = i - SECTD.len()
                 }
             }
         }
 
-        f.write(&content[contet_start..])?;
+        f.write(&content[content_start..])?;
         // f.write(content)?;
         f.write(&[125u8, 125u8])?;
         f.flush().unwrap();
@@ -170,7 +172,7 @@ fn extract_page_number(source: &[u8]) -> Vec<u8> {
     let mut page_number_start = 0;
     let mut page_number_end = tail;
     while let Some(c) = source.get(tail) {
-        if CLOSE_BRACE.ne(c) {
+        if CLOSE_BRACE.ne(c) && NEWLINE.ne(c) && SPACE.ne(c) && RETURN.ne(c) {
             page_number_end = tail + 1;
             break;
         }
@@ -202,11 +204,20 @@ mod test_report5 {
     use super::*;
     #[test]
     fn extract_page_number_test() {
-        let source = r"{\field{\*\fldinst {\rtlch\fcs1 \af44\afs21 \ltrch\fcs0 \fs21\cf1\loch\af44\hich\af44\dbch\af13\insrsid1004785 \hich\af44\dbch\af13\loch\f44  PAGE }}{\fldrslt {
-            \rtlch\fcs1 \af44\afs21 \ltrch\fcs0 \fs21\cf1\lang1024\langfe1024\loch\af44\hich\af44\dbch\af13\noproof\insrsid11627908 \hich\af44\dbch\af13\loch\f44 1}}}".as_bytes();
+        let source = r"{\field{\*\fldinst {\rtlch\fcs1 \af44 \ltrch\fcs0 \f44\cf1\insrsid16154060 \hich\af44\dbch\af31505\loch\f44  PAGE }}{\fldrslt {\rtlch\fcs1 \af44 \ltrch\fcs0 \f44\cf1\lang1024\langfe1024\noproof\insrsid16019468 \hich\af44\dbch\af31505\loch\f44 2}}}
+        ".as_bytes();
         assert_eq!(
-            "1",
+            "2",
             String::from_utf8_lossy(&extract_page_number(source)).to_string()
-        )
+        );
+
+        let source = &fs::read(Path::new(
+            r"D:\Studies\ak112\303\stats\CSR\product\output\asco\t-14-01-03-01-dm-fas.rtf",
+        ))
+        .unwrap()[50274..50523];
+        assert_eq!(
+            "2",
+            String::from_utf8_lossy(&extract_page_number(source)).to_string()
+        );
     }
 }
