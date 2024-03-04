@@ -15,7 +15,7 @@ impl<'a> TypeDetecter for Report5Detecter<'a> {
             return false;
         }
         let mut tail = 5;
-        while trowd_count < 2 && tail < self.data.len() {
+        while trowd_count < 5 && tail < self.data.len() {
             let head_trowd = tail + 1 - TROWD_TAG.len();
             let head_field = tail + 1 - FILED_TAG.len();
             if self.data[head_field..tail + 1].eq(FILED_TAG) {

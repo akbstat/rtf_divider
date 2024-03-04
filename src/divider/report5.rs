@@ -1,17 +1,16 @@
 // use crate::detecter::{Report5Detecter, TypeDetecter};
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
 };
 
-use super::RTF_EXTENTION;
+use super::{field, RTF_EXTENTION};
 
 const TROWD: &[u8] = r"\trowd".as_bytes();
 const PAGE: &[u8] = r"\page".as_bytes();
 const FIELD: &[u8] = r"{\field".as_bytes();
-const SECTD: &[u8] = r"\sectd".as_bytes();
 const CLOSE_BRACE: u8 = b'}';
 const SPACE: u8 = b' ';
 const NEWLINE: u8 = b'\n';
@@ -119,39 +118,37 @@ impl<'a> Report5Divider<'a> {
         };
         let content = &self.bytes[first_page.0..last_page.1];
         let mut content_start = 0;
-        let mut field_area_start = 0;
-        let mut field_area_open = false;
         // remove auto field informations
         for (i, _) in content.iter().enumerate() {
             if i < FIELD.len() {
                 continue;
             }
-
             if let Some(mark) = content.get(i - FIELD.len()..i) {
                 if FIELD.eq(mark) {
-                    let mut content_end = i - FIELD.len();
-                    // eliminate new line char
+                    let mut fill_close_brace = false;
+                    let mut content_end = i - FIELD.len() - 1;
                     while let Some(c) = content.get(content_end) {
-                        if CLOSE_BRACE.eq(c) {
+                        if SPACE.ne(c) && NEWLINE.ne(c) && RETURN.ne(c) {
+                            if CLOSE_BRACE.eq(c) {
+                                fill_close_brace = true;
+                            } else {
+                                content_end += 1;
+                            }
                             break;
                         }
                         content_end -= 1;
                     }
                     f.write(&content[content_start..content_end])?;
-                    field_area_open = true;
-                    field_area_start = i - FIELD.len();
+                    let field_area_start = i - FIELD.len();
+                    let field = field::handle_field(content.get(field_area_start..).unwrap());
+                    content_start = field.tail + field_area_start + 1;
+                    if let Some(page) = field.page {
+                        f.write(page.as_bytes())?;
+                        if fill_close_brace {
+                            f.write(&[CLOSE_BRACE])?;
+                        }
+                    }
                     continue;
-                }
-            }
-
-            if let Some(mark) = content.get(i - SECTD.len()..i) {
-                if SECTD.eq(mark) && field_area_open {
-                    f.write(&extract_page_number(
-                        content.get(field_area_start..i - SECTD.len()).unwrap(),
-                    ))?;
-                    f.write(&vec![CLOSE_BRACE])?;
-                    field_area_open = false;
-                    content_start = i - SECTD.len()
                 }
             }
         }
@@ -167,57 +164,58 @@ impl<'a> Report5Divider<'a> {
     }
 }
 
-fn extract_page_number(source: &[u8]) -> Vec<u8> {
-    let mut tail = source.len() - 1;
-    let mut page_number_start = 0;
-    let mut page_number_end = tail;
-    while let Some(c) = source.get(tail) {
-        if CLOSE_BRACE.ne(c) && NEWLINE.ne(c) && SPACE.ne(c) && RETURN.ne(c) {
-            page_number_end = tail + 1;
-            break;
-        }
-        tail -= 1;
-    }
-    while let Some(c) = source.get(tail) {
-        if SPACE.ne(c) {
-            page_number_end = tail + 1;
-            break;
-        }
-        tail -= 1;
-    }
+// fn extract_page_number(source: &[u8]) -> Vec<u8> {
+//     let mut tail = source.len() - 1;
+//     let mut page_number_start = 0;
+//     let mut page_number_end = tail;
+//     while let Some(c) = source.get(tail) {
+//         if CLOSE_BRACE.ne(c) && NEWLINE.ne(c) && SPACE.ne(c) && RETURN.ne(c) {
+//             page_number_end = tail + 1;
+//             break;
+//         }
+//         tail -= 1;
+//     }
+//     while let Some(c) = source.get(tail) {
+//         if SPACE.ne(c) {
+//             page_number_end = tail + 1;
+//             break;
+//         }
+//         tail -= 1;
+//     }
 
-    while let Some(c) = source.get(tail) {
-        if SPACE.eq(c) {
-            page_number_start = tail + 1;
-            break;
-        }
-        tail -= 1;
-    }
-    source
-        .get(page_number_start..page_number_end)
-        .unwrap()
-        .to_owned()
-}
+//     while let Some(c) = source.get(tail) {
+//         if SPACE.eq(c) {
+//             page_number_start = tail + 1;
+//             break;
+//         }
+//         tail -= 1;
+//     }
+//     source
+//         .get(page_number_start..page_number_end)
+//         .unwrap()
+//         .to_owned()
+// }
 
 #[cfg(test)]
 mod test_report5 {
-    use super::*;
-    #[test]
-    fn extract_page_number_test() {
-        let source = r"{\field{\*\fldinst {\rtlch\fcs1 \af44 \ltrch\fcs0 \f44\cf1\insrsid16154060 \hich\af44\dbch\af31505\loch\f44  PAGE }}{\fldrslt {\rtlch\fcs1 \af44 \ltrch\fcs0 \f44\cf1\lang1024\langfe1024\noproof\insrsid16019468 \hich\af44\dbch\af31505\loch\f44 2}}}
-        ".as_bytes();
-        assert_eq!(
-            "2",
-            String::from_utf8_lossy(&extract_page_number(source)).to_string()
-        );
+    // use super::*;
 
-        let source = &fs::read(Path::new(
-            r"D:\Studies\ak112\303\stats\CSR\product\output\asco\t-14-01-03-01-dm-fas.rtf",
-        ))
-        .unwrap()[50274..50523];
-        assert_eq!(
-            "2",
-            String::from_utf8_lossy(&extract_page_number(source)).to_string()
-        );
-    }
+    // #[test]
+    // fn extract_page_number_test() {
+    //     let source = r"{\field{\*\fldinst {\rtlch\fcs1 \af44 \ltrch\fcs0 \f44\cf1\insrsid16154060 \hich\af44\dbch\af31505\loch\f44  PAGE }}{\fldrslt {\rtlch\fcs1 \af44 \ltrch\fcs0 \f44\cf1\lang1024\langfe1024\noproof\insrsid16019468 \hich\af44\dbch\af31505\loch\f44 2}}}
+    //     ".as_bytes();
+    //     assert_eq!(
+    //         "2",
+    //         String::from_utf8_lossy(&extract_page_number(source)).to_string()
+    //     );
+
+    //     let source = &fs::read(Path::new(
+    //         r"D:\Studies\ak112\303\stats\CSR\product\output\asco\t-14-01-03-01-dm-fas.rtf",
+    //     ))
+    //     .unwrap()[50274..50523];
+    //     assert_eq!(
+    //         "2",
+    //         String::from_utf8_lossy(&extract_page_number(source)).to_string()
+    //     );
+    // }
 }
