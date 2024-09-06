@@ -144,9 +144,9 @@ impl<'a> Report5Divider<'a> {
                     content_start = field.tail + field_area_start + 1;
                     if let Some(page) = field.page {
                         f.write(page.as_bytes())?;
-                        if fill_close_brace {
-                            f.write(&[CLOSE_BRACE])?;
-                        }
+                    }
+                    if fill_close_brace {
+                        f.write(&[CLOSE_BRACE])?;
                     }
                     continue;
                 }

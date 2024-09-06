@@ -78,10 +78,15 @@ mod divider_test {
         // let divider = RTFDivider::new(pdf).unwrap().unwrap();
         // divider.set_pagesize(50).divide(dest).unwrap();
 
+        let pdf = Path::new(r"D:\Studies\ak115\202\stats\draft\product\output\l-14-03-02-02.rtf");
+        let dest = Path::new(r"D:\Studies\ak115\202\stats\draft\product\output\rtf_divided");
+        let divider = RTFDivider::new(pdf).unwrap().unwrap();
+        divider.set_pagesize(50).divide(dest).unwrap();
+
         let pdf = Path::new(
-            r"D:\Studies\ak112\303\stats\CSR\product\output\asco\f-14-02-01-05-irrc-pfs-for-fas.rtf",
+            r"D:\Studies\ak112\303\stats\CSR\product\output\l-16-02-04-07-02-pre-pr-fas.rtf",
         );
-        let dest = Path::new(r"D:\Studies\ak112\303\stats\CSR\product\output\asco\rtf_divided");
+        let dest = Path::new(r"D:\Studies\ak112\303\stats\CSR\product\output\rtf_divided");
         let divider = RTFDivider::new(pdf).unwrap().unwrap();
         divider.set_pagesize(50).divide(dest).unwrap();
     }
