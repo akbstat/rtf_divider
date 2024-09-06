@@ -1,6 +1,11 @@
 use anyhow::{Ok, Result};
 use serde::{Deserialize, Serialize};
-use std::{fs, os::windows::fs::MetadataExt, path::Path};
+use std::{
+    fs,
+    os::windows::fs::MetadataExt,
+    path::Path,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 const RTF_EXTENTION: &str = "rtf";
 
@@ -34,6 +39,7 @@ pub struct Rtf {
     name: String,
     size: u64,
     kind: Kind,
+    modified_at: u64,
 }
 
 pub fn list_rtf(p: &Path) -> Result<Vec<Rtf>> {
@@ -45,16 +51,23 @@ pub fn list_rtf(p: &Path) -> Result<Vec<Rtf>> {
         }
         let filename = f.file_name().to_string_lossy().to_string();
         let meta = f.metadata()?;
+        let modified_at = sys_to_unix(meta.modified()?)?;
         if let Some(kind) = Kind::new(&filename) {
             rtf.push(Rtf {
                 name: filename,
                 size: meta.file_size(),
                 kind,
+                modified_at,
             });
         }
     }
     rtf.sort_by(|x, y| x.kind.partial_cmp(&y.kind).unwrap());
     Ok(rtf)
+}
+
+/// convert SystemTime struct into unix timestamp
+fn sys_to_unix(st: SystemTime) -> Result<u64> {
+    Ok(st.duration_since(UNIX_EPOCH)?.as_secs())
 }
 
 /// check if a file is rtf or not, using its filename
