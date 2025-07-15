@@ -31,7 +31,7 @@ impl<'a> TypeDetecter for Report5Detecter<'a> {
 }
 
 impl<'a> Report5Detecter<'a> {
-    pub fn new(data: &'a [u8]) -> Report5Detecter {
+    pub fn new(data: &[u8]) -> Report5Detecter {
         Report5Detecter { data }
     }
 }
